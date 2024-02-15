@@ -25,6 +25,7 @@ extern int errno;
 #define DATALEN   1024    /* length of the payload                       */
 #define N         1024    /* Max number of packets a single call to gbn_send can process */
 #define TIMEOUT      1    /* timeout to resend packets (1 second)        */
+#define SEQNUM   	 4    /* number of seqnums       					 */
 
 /*----- Packet types -----*/
 #define SYN      0        /* Opens a connection                          */
@@ -44,9 +45,15 @@ typedef struct {
 } __attribute__((packed)) gbnhdr;
 
 typedef struct state_t{
-
 	/* TODO: Your state information could be encoded here. */
-
+	gbnhdr packet_buf[SEQNUM];
+	size_t packet_size[SEQNUM];
+	struct sockaddr_storage sockaddr;
+	socklen_t socklen;
+	uint8_t active_connection;
+	uint8_t is_sender;
+	uint8_t seqnum;
+	int windowsize;
 } state_t;
 
 enum {
