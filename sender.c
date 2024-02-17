@@ -47,7 +47,7 @@ int main(int argc, char *argv[]){
 		perror("gbn_connect");
 		exit(-1);
 	}
-
+	
 	/*----- Reading from the file and sending it through the socket -----*/
 	while ((numRead = fread(buf, 1, DATALEN * N, inputFile)) > 0){
 		if (gbn_send(sockfd, buf, numRead, 0) == -1){
