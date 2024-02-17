@@ -43,10 +43,16 @@ ssize_t maybe_send_packet(int sockfd, uint8_t seqnum, int flags){
 	return maybe_sendto(sockfd, &s.packet_buf[seqnum], s.packet_size[seqnum], flags, (struct sockaddr *)&s.sockaddr, s.socklen);
 }
 
-void set_window(){
-	print("set_window: window=%d\n", WINDOW_SIZE);
-	s.windowsize = WINDOW_SIZE;
+void set_window_fast(){
+	print("set_window_fast: window_size = %d\n", WINDOW_SIZE_FAST);
+	s.windowsize = WINDOW_SIZE_FAST;
 }
+
+void set_window_slow(){
+	print("set_window_slow: window_size = %d\n", WINDOW_SIZE_SLOW);
+	s.windowsize = WINDOW_SIZE_SLOW;
+}
+
 ssize_t gbn_send(int sockfd, const void *buf, size_t len, int flags){
 	
 	/* TODO: Your code here. */
