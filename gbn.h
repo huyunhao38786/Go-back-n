@@ -14,6 +14,7 @@
 #include<errno.h>
 #include<netdb.h>
 #include<time.h>
+#include <signal.h>
 
 /*----- Error variables -----*/
 extern int h_errno;
@@ -64,6 +65,12 @@ enum {
 	FIN_SENT,
 	FIN_RCVD
 };
+
+#define ACK_STATUS_TIMEOUT -2
+#define ACK_STATUS_CORRUPT -3
+#define ACK_STATUS_BADSEQ -4
+
+#define MAX_FIN 3
 
 extern state_t s;
 
