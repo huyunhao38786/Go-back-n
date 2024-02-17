@@ -80,16 +80,6 @@ ssize_t maybe_send(int sockfd, uint8_t type, uint8_t seqnum, const void *buf, si
 	return maybe_sendto(sockfd, &packet, packet_size, flags, (struct sockaddr *)&s.sockaddr, s.socklen);
 }
 
-void set_window_fast(){
-	printf("set_window_fast: window_size = %d\n", WINDOW_SIZE_FAST);
-	s.windowsize = WINDOW_SIZE_FAST;
-}
-
-void set_window_slow(){
-	printf("set_window_slow: window_size = %d\n", WINDOW_SIZE_SLOW);
-	s.windowsize = WINDOW_SIZE_SLOW;
-}
-
 ssize_t gbn_send(int sockfd, const void *buf, size_t len, int flags){
 	
 	/* TODO: Your code here. */
@@ -102,12 +92,12 @@ ssize_t gbn_send(int sockfd, const void *buf, size_t len, int flags){
 	printf("call gbn_send()\n");
 	gbnhdr packet;
 
-	set_window_fast();
+	printf("set window_size = %d\n", WINDOW_SIZE_SLOW);
+	s.windowsize = WINDOW_SIZE_SLOW;
 	
 	size_t offset = 0;
 
 	while(offset < len){
-
 		printf("--------------------------------------\n");
 		printf("gbn_send: offset / length : (%lu / %lu)\n", offset, len);
 		printf("gbn_send: window size = %d\n", s.windowsize);
@@ -123,42 +113,45 @@ ssize_t gbn_send(int sockfd, const void *buf, size_t len, int flags){
 		}
 		printf("bug_send: create %d packet(s)\n", cnt_packet);
 
-		while(TRUE){
+		printf("-------------------\n");
+		int sent_packet;
+		for(sent_packet = 0; sent_packet < cnt_packet; sent_packet++){
+			size_t tmp_seqnum = get_nth_seq_num(s.seqnum, sent_packet);
+			printf("gbn_send: send DATA packet, seqnum=%lu\n", tmp_seqnum);
+			if(maybe_send_packet(sockfd, tmp_seqnum, flags) < 0)
+				return -1;
+		}
 
-			printf("-------------------\n");
-			int sent_packet;
-			for(sent_packet = 0; sent_packet < cnt_packet; sent_packet++){
-				size_t tmp_seqnum = get_nth_seq_num(s.seqnum, sent_packet);
-				printf("gbn_send: send DATA packet, seqnum=%lu\n", tmp_seqnum);
-				if(maybe_send_packet(sockfd, tmp_seqnum, flags) < 0)
-					return -1;
+		printf("-------------------\n");
+		size_t error_detected = FALSE;
+		int acked_packet;
+		for(acked_packet = 0; acked_packet < cnt_packet; acked_packet++){
+			size_t ack_status = recv_ack(sockfd, &packet, flags);
+			if(ack_status == ACK_STATUS_TIMEOUT || ack_status == ACK_STATUS_CORRUPT || ack_status == ACK_STATUS_BADSEQ){
+				printf("gbn_send: detect error when receiving ACK\n");
+				error_detected = TRUE;
 			}
-
-			printf("-------------------\n");
-			size_t error_detected = FALSE;
-			int acked_packet;
-			for(acked_packet = 0; acked_packet < cnt_packet; acked_packet++){
-				size_t ack_status = recv_ack(sockfd, &packet, flags);
-				if(ack_status == ACK_STATUS_TIMEOUT || ack_status == ACK_STATUS_CORRUPT || ack_status == ACK_STATUS_BADSEQ){
-					printf("gbn_send: detect error when receiving ACK\n");
-					error_detected = TRUE;
-				}
-				else if(ack_status <= 0){
-					return -1;
-				}
-				else{
-					printf("gbn_send: receive ack, update offset\n");
-					offset += MIN(DATALEN, len - offset);
-					error_detected = FALSE;
-				}
-			}
-			if(error_detected){
-				set_window_slow();
+			else if(ack_status <= 0){
+				return -1;
 			}
 			else{
-				set_window_fast();
+				printf("gbn_send: receive ack, update offset\n");
+				offset += MIN(DATALEN, len - offset);
+				error_detected = FALSE;
 			}
-			break;
+		}
+		if(error_detected){
+			printf("set window_size = %d\n", WINDOW_SIZE_SLOW);
+			s.windowsize = WINDOW_SIZE_SLOW;
+		}
+		else{
+			if(s.windowsize == WINDOW_SIZE_SLOW){
+				s.windowsize = WINDOW_SIZE_MID;
+			}
+			else if(s.windowsize == WINDOW_SIZE_MID){
+				s.windowsize = WINDOW_SIZE_FAST;
+			}
+			printf("set window_size = %d\n", s.windowsize);
 		}
 	}
 	return 0;
@@ -174,7 +167,7 @@ ssize_t gbn_recv(int sockfd, void *buf, size_t len, int flags){
 		printf("--------------------------------------\n");
 		printf("gbn_recv: receiv DATA\n");
 		gbnhdr_clear(&packet);
-		packet_len_bytes = recvfrom(sockfd, &packet, sizeof(gbnhdr), flags, (struct sockaddr *)&s.sockaddr, &s.socklen);
+		packet_len_bytes = maybe_recvfrom(sockfd, &packet, sizeof(gbnhdr), flags, (struct sockaddr *)&s.sockaddr, &s.socklen);
 		if(packet_len_bytes <= 0){
 			return packet_len_bytes;
 		}
@@ -205,6 +198,7 @@ ssize_t gbn_recv(int sockfd, void *buf, size_t len, int flags){
 	}
 
 	increment_seq_num();
+
 	if(packet.type == DATA){
 		printf("gbn_recv: receive DATA packet\n");
 		size_t data_len_bytes = packet_len_bytes - (sizeof(packet.type) + sizeof(packet.seqnum) + sizeof(packet.checksum));
@@ -333,7 +327,7 @@ int gbn_accept(int sockfd, struct sockaddr *client, socklen_t *socklen){
 	while (1){
 		printf("gbn_accept: receiving SYN\n");
 		gbnhdr_clear(&packet);
-		if (recvfrom(sockfd, &packet, sizeof(gbnhdr), flags, client, socklen) < 0){
+		if (maybe_recvfrom(sockfd, &packet, sizeof(gbnhdr), flags, client, socklen) < 0){
 			printf("gbn_accept: failed receiving SYN packet\n");
 			return -1;
 		}
@@ -386,7 +380,7 @@ ssize_t recv_ack(int sockfd, gbnhdr *packet, int flags) {
 	printf("call recv_ack()\n");
 	gbnhdr_clear(packet);
 	alarm(TIMEOUT);
-	ssize_t result = recvfrom(sockfd, packet, sizeof(gbnhdr), flags, (struct sockaddr *)&s.sockaddr, &s.socklen);
+	ssize_t result = maybe_recvfrom(sockfd, packet, sizeof(gbnhdr), flags, (struct sockaddr *)&s.sockaddr, &s.socklen);
 	alarm(INT_MAX);
 	if (result == 0) {
 		return 0;
