@@ -101,9 +101,10 @@ ssize_t recv_ack(int sockfd, gbnhdr *packet, int flags);
 ssize_t maybe_send(int sockfd, uint8_t type, uint8_t seqnum, const void *buf, size_t len, int flags);
 uint8_t get_nth_seq_num(uint8_t seqnum, int n);
 void increment_seq_num();
-size_t gbnhdr_build(gbnhdr *packet, uint8_t type, uint8_t seqnum, const void *buf, size_t len);
+size_t build_packet(gbnhdr *packet, uint8_t type, uint8_t seqnum, const void *buf, size_t len);
 void gbnhdr_clear(gbnhdr *packet);
 uint8_t get_next_seq_num(uint8_t seq_num);
+uint8_t validate_packet(gbnhdr *packet);
 
 
 #endif
